@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Podcast Editor</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">🎙 Podcast Editor</div>
+  <input id="projectName" class="project-name" value="podcast" spellcheck="false" title="プロジェクト名（書き出しファイル名）">
+  <span id="saveState" class="save-state">保存済み</span>
+  <div class="spacer"></div>
+  <button id="undoBtn" title="元に戻す (⌘Z)">↶ 元に戻す</button>
+  <button id="redoBtn" title="やり直す (⇧⌘Z)">↷ やり直す</button>
+  <select id="exportFormat" title="書き出し形式">
+    <option value="mp3">MP3 192k</option>
+    <option value="m4a">M4A (AAC)</option>
+    <option value="wav">WAV</option>
+  </select>
+  <button id="exportBtn" class="primary">書き出し</button>
+  <a id="exportLink" class="export-link" hidden download>ダウンロード</a>
+</header>
+
+<main id="main">
+  <aside id="left">
+    <section class="panel">
+      <h2>音源 <small>(audio/)</small></h2>
+      <div id="fileList" class="file-list"></div>
+      <button id="reloadFiles" class="ghost small">再読み込み</button>
+    </section>
+    <section class="panel">
+      <h2>話者</h2>
+      <div class="speaker-row"><span class="spk-dot spk0"></span><input id="spkName0" value="話者A" spellcheck="false"></div>
+      <div class="speaker-row"><span class="spk-dot spk1"></span><input id="spkName1" value="話者B" spellcheck="false"></div>
+    </section>
+    <section class="panel help">
+      <h2>ショートカット</h2>
+      <dl>
+        <dt>Space</dt><dd>再生 / 停止</dd>
+        <dt>← →</dt><dd>5秒移動（⇧で1秒）</dd>
+        <dt>I / O</dt><dd>再生位置を選択の開始 / 終了に</dd>
+        <dt>Delete</dt><dd>選択範囲をカット</dd>
+        <dt>S</dt><dd>再生位置でクリップを分割</dd>
+        <dt>⌘Z</dt><dd>元に戻す</dd>
+        <dt>Esc</dt><dd>選択解除</dd>
+      </dl>
+      <p>テキスト: クリックでジャンプ、ドラッグ / ⇧クリックで範囲選択、ダブルクリックで修正、話者ラベルクリックで話者切替。</p>
+    </section>
+  </aside>
+
+  <section id="center">
+    <div class="toolbar">
+      <button id="cutBtn" title="選択範囲をカット (Delete)">✂ 選択範囲をカット</button>
+      <button id="inBtn" title="再生位置を選択開始に (I)">IN</button>
+      <button id="outBtn" title="再生位置を選択終了に (O)">OUT</button>
+      <button id="swapSpkBtn" title="選択範囲の話者を入れ替え">話者入替</button>
+      <button id="clearSelBtn" class="ghost" title="選択解除 (Esc)">解除</button>
+      <span id="selInfo" class="sel-info"></span>
+      <div class="spacer"></div>
+      <input id="search" type="search" placeholder="テキスト検索">
+      <label class="follow"><input type="checkbox" id="follow" checked> 追従</label>
+    </div>
+    <div id="transcript" class="transcript"></div>
+  </section>
+
+  <aside id="right">
+    <section class="panel">
+      <h2>クリップ</h2>
+      <div id="clipList" class="clip-list"></div>
+    </section>
+    <section class="panel" id="inspector">
+      <h2>クリップ設定</h2>
+      <div id="inspectorBody" class="inspector-body">
+        <p class="muted">タイムライン上のクリップを選択してください</p>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<footer id="bottom">
+  <div class="transport">
+    <button id="toStart" title="先頭へ">⏮</button>
+    <button id="playBtn" class="play" title="再生 / 停止 (Space)">▶</button>
+    <span id="timeNow" class="time">00:00.0</span>
+    <span class="time dim">/</span>
+    <span id="timeTotal" class="time dim">00:00.0</span>
+    <div class="spacer"></div>
+    <button id="splitBtn" title="再生位置で分割 (S)">分割</button>
+    <span id="status" class="status"></span>
+  </div>
+  <canvas id="timeline"></canvas>
+</footer>
+
+<div id="toast" class="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

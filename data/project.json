@@ -1,0 +1,21 @@
+{
+  "name": "podcast",
+  "speakers": [
+    "話者A",
+    "話者B"
+  ],
+  "clips": [
+    {
+      "id": "y1qgk4jk",
+      "sourceId": "電通東日本本社_5140.m4a",
+      "srcStart": 74.20977,
+      "srcEnd": 1912.33785,
+      "fadeIn": 1,
+      "fadeOut": 1,
+      "crossfade": 0,
+      "len": 1838.12808,
+      "tlStart": 0,
+      "tlEnd": 1838.12808
+    }
+  ]
+}
