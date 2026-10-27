@@ -19,7 +19,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const state = {
   files: [],
   sources: {}, // name -> { name, duration, words, peaks, color }
-  project: { name: "podcast", speakers: ["話者A", "話者B"], clips: [] },
+  project: { name: "podcast", speakers: ["話者A", "話者B"], hideFillers: false, clips: [] },
   selectedClipId: null,
   selection: null, // { start, end } timeline seconds
   anchorWord: null,
@@ -74,7 +74,7 @@ async function ensureSourceData(name) {
     tasks.push(api(`/api/peaks/${encodeURIComponent(name)}`).then((p) => { s.peaks = p.peaks; s.peaksPerSec = p.perSec; drawTimeline(); }).catch(() => {}));
   }
   if (!s.words && s.hasTranscript) {
-    tasks.push(api(`/api/transcript/${encodeURIComponent(name)}`).then((t) => { s.words = t.words; }).catch(() => {}));
+    tasks.push(api(`/api/transcript/${encodeURIComponent(name)}`).then((t) => { s.words = t.words; s.fillers = t.fillers || null; }).catch(() => {}));
   }
   await Promise.all(tasks);
 }
@@ -82,7 +82,7 @@ async function ensureSourceData(name) {
 const saveTranscriptDebounced = debounce(async (name) => {
   const s = state.sources[name];
   try {
-    await api(`/api/transcript/${encodeURIComponent(name)}`, { method: "PUT", body: { file: name, duration: s.duration, words: s.words } });
+    await api(`/api/transcript/${encodeURIComponent(name)}`, { method: "PUT", body: { file: name, duration: s.duration, words: s.words, fillers: s.fillers || undefined } });
   } catch (e) { toast("文字起こしの保存に失敗: " + e.message, true); }
 }, 600);
 
@@ -154,18 +154,25 @@ function buildIndex() {
   layout();
   const tlWords = [];
   const segments = [];
+  const hide = !!state.project.hideFillers;
   for (const clip of clips()) {
     const src = state.sources[clip.sourceId];
     segments.push({ type: "clip", clip, noTranscript: !src || !src.words });
     if (!src || !src.words) continue;
     let cur = null;
     for (const w of src.words) {
+      if (hide && w.f) continue; // フィラー・頷きを非表示
       const mid = (w.s + w.e) / 2;
       if (mid < clip.srcStart || mid >= clip.srcEnd) continue;
       const tw = { t: w.t, s: clip.tlStart + (w.s - clip.srcStart), e: clip.tlStart + (w.e - clip.srcStart), spk: w.spk, clip, ref: w, src };
       tlWords.push(tw);
-      if (!cur || cur.spk !== w.spk || tw.s - cur.e > 1.2 || tw.e - cur.s > 25) {
-        cur = { type: "seg", spk: w.spk, s: tw.s, e: tw.e, words: [], clip };
+      // 非表示モードでは前処理で付けた発話 ID (u) 単位にまとめる
+      // （相槌を省いて同じ話者が隣接していれば一つの発話になる）
+      const split = hide && w.u !== undefined
+        ? !cur || cur.spk !== w.spk || cur.u !== w.u
+        : !cur || cur.spk !== w.spk || tw.s - cur.e > 1.2 || tw.e - cur.s > 25;
+      if (split) {
+        cur = { type: "seg", spk: w.spk, u: w.u, s: tw.s, e: tw.e, words: [], clip };
         segments.push(cur);
       }
       cur.words.push(tw);
@@ -494,10 +501,11 @@ function renderFiles() {
     if (running) anyRunning = true;
     div.innerHTML = `
       <div class="name"><span class="src-dot" style="background:${s.color}"></span><span>${esc(f.name)}</span></div>
-      <div class="meta">${fmt(f.duration, false)} ・ ${s.hasTranscript ? "文字起こし済み" : "文字起こしなし"}</div>
+      <div class="meta">${fmt(f.duration, false)} ・ ${s.hasTranscript ? "文字起こし済み" : "文字起こしなし"}${s.fillers ? ` ・ フィラー ${s.fillers.filler} / 頷き ${s.fillers.backchannel}` : ""}</div>
       <div class="actions">
         <button class="small add">＋ タイムラインに追加</button>
         <button class="small tr" ${running ? "disabled" : ""}>${s.hasTranscript ? "再文字起こし" : "文字起こし"}</button>
+        <button class="small fl" ${running || !s.hasTranscript ? "disabled" : ""} title="フィラー・頷きにラベルを付ける（前処理）">${s.fillers ? "フィラー再検出" : "フィラー検出"}</button>
       </div>
       ${running ? `<div class="progress"><div style="width:${Math.round((job.progress || 0) * 100)}%"></div></div><div class="job-msg">${esc(job.message || "")}</div>` : ""}
       ${job && job.state === "error" ? `<div class="job-msg error">エラー: ${esc(job.error || "")}</div>` : ""}
@@ -509,6 +517,19 @@ function renderFiles() {
         s.job = await api(`/api/transcribe/${encodeURIComponent(f.name)}`, { method: "POST" });
         renderFiles();
       } catch (e) { toast("文字起こし開始に失敗: " + e.message, true); }
+    };
+    div.querySelector(".fl").onclick = async () => {
+      try {
+        const r = await api(`/api/transcript/${encodeURIComponent(f.name)}/fillers`, { method: "POST" });
+        s.words = null;
+        await ensureSourceData(f.name);
+        s.fillers = r.fillers;
+        buildIndex();
+        renderTranscript();
+        refreshTime(true);
+        renderFiles();
+        toast(`${f.name}: フィラー ${r.fillers.filler} 語・頷き ${r.fillers.backchannel} 語を検出しました`);
+      } catch (e) { toast("フィラー検出に失敗: " + e.message, true); }
     };
     root.appendChild(div);
   }
@@ -606,7 +627,8 @@ function renderTranscript() {
     for (const tw of seg.words) {
       const i = idxOf.get(tw);
       const sp = document.createElement("span");
-      sp.className = "w";
+      sp.className = "w" + (tw.ref.f ? " f" : "");
+      if (tw.ref.f) sp.title = tw.ref.f === "backchannel" ? "頷き" : "フィラー";
       sp.textContent = tw.t;
       sp.dataset.i = i;
       wordEls[i] = sp;
@@ -1034,6 +1056,13 @@ $("#search").oninput = () => {
 };
 $("#search").onkeydown = (e) => { if (e.key === "Enter") { const first = applySearch(); if (first >= 0) { engine.seek(state.index.tlWords[first].s); refreshTime(true); } } };
 $("#projectName").onchange = (e) => { state.project.name = e.target.value || "podcast"; markDirty(); };
+$("#hideFillers").onchange = (e) => {
+  state.project.hideFillers = e.target.checked;
+  buildIndex();
+  renderTranscript();
+  refreshTime(true);
+  markDirty();
+};
 for (const k of [0, 1]) {
   $(`#spkName${k}`).oninput = (e) => {
     state.project.speakers[k] = e.target.value;
@@ -1049,7 +1078,7 @@ window.addEventListener("beforeunload", () => engine.dispose());
     await loadFiles();
     const proj = await api("/api/project");
     if (proj && Array.isArray(proj.clips)) {
-      state.project = { name: "podcast", speakers: ["話者A", "話者B"], ...proj };
+      state.project = { name: "podcast", speakers: ["話者A", "話者B"], hideFillers: false, ...proj };
       state.project.clips = state.project.clips.filter((c) => state.sources[c.sourceId]);
     } else if (state.files.length) {
       state.project.clips.push(newClip(state.files[0].name, 0, state.files[0].duration));
@@ -1057,6 +1086,7 @@ window.addEventListener("beforeunload", () => engine.dispose());
     $("#projectName").value = state.project.name;
     $("#spkName0").value = state.project.speakers[0] || "話者A";
     $("#spkName1").value = state.project.speakers[1] || "話者B";
+    $("#hideFillers").checked = !!state.project.hideFillers;
     buildIndex();
     renderTranscript();
     renderClipList();

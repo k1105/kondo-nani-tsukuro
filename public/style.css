@@ -107,6 +107,8 @@ h2 small { text-transform: none; letter-spacing: 0; }
 .w.sel { background: var(--sel); }
 .w.cur.sel { background: var(--cur); }
 .w.hit { outline: 1px solid var(--accent); }
+.w.f { color: var(--dim); font-size: 0.85em; text-decoration: underline dotted; text-underline-offset: 3px; }
+.w.f.cur { color: #1a1500; }
 .w-edit { font: inherit; background: var(--bg3); border: 1px solid var(--accent); border-radius: 3px; padding: 0 4px; color: var(--fg); }
 .nots { color: var(--dim); font-style: italic; font-size: 13px; padding: 2px 0 2px 160px; }
 

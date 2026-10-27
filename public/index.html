@@ -47,6 +47,7 @@
         <dt>Esc</dt><dd>選択解除</dd>
       </dl>
       <p>テキスト: クリックでジャンプ、ドラッグ / ⇧クリックで範囲選択、ダブルクリックで修正、話者ラベルクリックで話者切替。</p>
+      <p>音源の「フィラー検出」で「えー」「あの」や相槌にラベルを付け（文字起こし時は自動）、「フィラー・頷きを隠す」で非表示にできます。</p>
     </section>
   </aside>
 
@@ -60,6 +61,7 @@
       <span id="selInfo" class="sel-info"></span>
       <div class="spacer"></div>
       <input id="search" type="search" placeholder="テキスト検索">
+      <label class="follow" title="フィラー・頷きを非表示にし、同じ話者が隣接する発話をまとめて表示"><input type="checkbox" id="hideFillers"> フィラー・頷きを隠す</label>
       <label class="follow"><input type="checkbox" id="follow" checked> 追従</label>
     </div>
     <div id="transcript" class="transcript"></div>

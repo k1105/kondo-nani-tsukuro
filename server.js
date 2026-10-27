@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { probeDuration, computePeaks, exportTimeline } from "./lib/ffmpeg.js";
 import { transcribeFile } from "./lib/gemini.js";
+import { labelFillers } from "./lib/fillers.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const AUDIO_DIR = path.join(ROOT, "audio");
@@ -111,7 +112,9 @@ app.post("/api/transcribe/:name", wrap(async (req, res) => {
         job.message = message;
         job.progress = progress;
       });
-      await fs.writeFile(transcriptPath(name), JSON.stringify({ file: name, duration, ...result }));
+      // 前処理: フィラー・頷きのラベル付けと発話 ID の付与
+      const labeled = labelFillers(result.words);
+      await fs.writeFile(transcriptPath(name), JSON.stringify({ file: name, duration, model: result.model, words: labeled.words, fillers: labeled.meta }));
       job.state = "done";
       job.progress = 1;
     } catch (e) {
@@ -120,6 +123,18 @@ app.post("/api/transcribe/:name", wrap(async (req, res) => {
       job.error = e.message;
     }
   })();
+}));
+
+// フィラー・頷きのラベル付け（前処理）を既存の文字起こしに対して実行する
+app.post("/api/transcript/:name/fillers", wrap(async (req, res) => {
+  const p = transcriptPath(req.params.name);
+  if (!(await exists(p))) return res.status(404).json({ error: "not transcribed" });
+  const data = JSON.parse(await fs.readFile(p, "utf8"));
+  const { words, meta } = labelFillers(data.words || []);
+  data.words = words;
+  data.fillers = meta;
+  await fs.writeFile(p, JSON.stringify(data));
+  res.json({ ok: true, fillers: meta });
 }));
 
 app.get("/api/transcribe/:name/status", wrap(async (req, res) => {
